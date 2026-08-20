@@ -320,127 +320,159 @@
         const API_URL = "https://korawit007.onrender.com";
         let currentHistory = [];
 
-        async function startGame() {
-            const settingText = document.getElementById("world-setting").value;
-            if (!settingText) return alert("โปรดกำหนด Setting ก่อนออกเดินทาง");
-
-            document.getElementById("setup-screen").style.display = "none";
-            document.getElementById("game-screen").style.display = "flex";
-            toggleLoading(true);
-
-            try {
-                const res = await fetch(`${API_URL}/start_game`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ world_setting: settingText })
-                });
-                const data = await res.json();
+        window.onload = function() {
+        const saved = localStorage.getItem("adventure_save");
+        if (saved) {
+            const data = JSON.parse(saved);
+            if (data.history && data.history.length > 0) {
+                document.getElementById("world-setting").value = data.setting;
                 currentHistory = data.history;
+                document.getElementById("setup-screen").style.display = "none";
+                document.getElementById("game-screen").style.display = "flex";
                 renderHistory();
-            } catch (error) {
-                alert("อัญเชิญ Game Master ไม่สำเร็จ ลองตรวจสอบ Backend ดูนะ");
-                retryGame();
-            } finally {
-                toggleLoading(false);
             }
         }
+    }
 
-        async function takeAction() {
-            const actionType = document.getElementById("action-type").value;
-            const actionInput = document.getElementById("action-input");
-            const content = actionInput.value.trim();
+    // --- 2. ฟังก์ชันเซฟเกม ---
+    function saveGame() {
+        const saveData = {
+            setting: document.getElementById("world-setting").value,
+            history: currentHistory
+        };
+        localStorage.setItem("adventure_save", JSON.stringify(saveData));
+    }
 
-            if (!content) return;
-
-            actionInput.value = "";
-            toggleLoading(true);
-
-            // ดึงให้หน้าจอเลื่อนลงมาสุดก่อนเพื่อให้เห็นว่ากำลังโหลด
-            const board = document.getElementById("story-board");
-            setTimeout(() => board.scrollTop = board.scrollHeight, 100);
-
-            try {
-                const res = await fetch(`${API_URL}/action`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action_type: actionType, content: content })
-                });
-                const data = await res.json();
-                currentHistory = data.history;
-                renderHistory();
-            } catch (error) {
-                alert("เกิดข้อผิดพลาดในการประมวลผล");
-            } finally {
-                toggleLoading(false);
-            }
+    // --- 3. ฟังก์ชันลบเซฟเกม ---
+    function clearSave() {
+        if(confirm("คุณต้องการล้างความทรงจำของการผจญภัยนี้และเริ่มใหม่ทั้งหมดใช่หรือไม่?")) {
+            localStorage.removeItem("adventure_save");
+            retryGame();
         }
+    }
 
-        async function editMessage(index) {
-            const oldText = currentHistory[index].text;
-            const newText = prompt("ดัดแปลงโชคชะตา (แก้ไขเรื่องราว):", oldText);
+    async function startGame() {
+        const settingText = document.getElementById("world-setting").value;
+        if (!settingText) return alert("โปรดกำหนด Setting ก่อนออกเดินทาง");
 
-            if (newText !== null && newText.trim() !== "" && newText !== oldText) {
-                try {
-                    const res = await fetch(`${API_URL}/edit_story`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ index: index, new_text: newText })
-                    });
-                    const data = await res.json();
-                    currentHistory = data.history;
-                    renderHistory();
-                } catch (error) {
-                    alert("เปลี่ยนแปลงโชคชะตาไม่สำเร็จ");
-                }
-            }
-        }
+        document.getElementById("setup-screen").style.display = "none";
+        document.getElementById("game-screen").style.display = "flex";
+        toggleLoading(true);
 
-        function retryGame() {
-            document.getElementById("setup-screen").style.display = "flex";
-            document.getElementById("game-screen").style.display = "none";
-            document.getElementById("story-board").innerHTML = "";
-            currentHistory = [];
-        }
-
-        function renderHistory() {
-            const board = document.getElementById("story-board");
-            board.innerHTML = "";
-
-            currentHistory.forEach((msg, index) => {
-                const div = document.createElement("div");
-                div.className = `message-row role-${msg.role}`;
-
-                const formattedText = msg.text.replace(/\n/g, "<br>");
-                div.innerHTML = `<div>${formattedText}</div>`;
-
-                const editBtn = document.createElement("button");
-                editBtn.className = "edit-btn";
-                editBtn.innerText = "✎ ดัดแปลง";
-                editBtn.onclick = () => editMessage(index);
-                div.appendChild(editBtn);
-
-                board.appendChild(div);
+        try {
+            const res = await fetch(`${API_URL}/start_game`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ world_setting: settingText })
             });
-
-            // เลื่อนอัตโนมัติแบบนุ่มนวล (Smooth Scroll)
-            board.scrollTo({ top: board.scrollHeight, behavior: 'smooth' });
+            const data = await res.json();
+            currentHistory = data.history;
+            renderHistory();
+            saveGame(); // เซฟหลังจากอัปเดตหน้าจอ
+        } catch (error) {
+            alert("อัญเชิญ Game Master ไม่สำเร็จ ลองตรวจสอบ Backend ดูนะ");
+            retryGame();
+        } finally {
+            toggleLoading(false);
         }
+    }
 
-        function toggleLoading(show) {
-            document.getElementById("loading").style.display = show ? "block" : "none";
-            document.getElementById("controls").style.opacity = show ? "0.6" : "1";
-            const inputField = document.getElementById("action-input");
-            const btnSend = document.querySelector("#controls button");
+    async function takeAction() {
+        const actionType = document.getElementById("action-type").value;
+        const actionInput = document.getElementById("action-input");
+        const content = actionInput.value.trim();
 
-            // ล็อกไม่ให้พิมพ์หรือกดส่งซ้ำตอน AI กำลังคิด
-            inputField.disabled = show;
-            btnSend.disabled = show;
-            if (!show) inputField.focus();
+        if (!content) return;
+        
+        actionInput.value = "";
+        toggleLoading(true);
+
+        const board = document.getElementById("story-board");
+        setTimeout(() => board.scrollTop = board.scrollHeight, 100);
+
+        try {
+            const res = await fetch(`${API_URL}/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action_type: actionType, content: content })
+            });
+            const data = await res.json();
+            currentHistory = data.history;
+            renderHistory();
+            saveGame(); // เซฟหลังจากผู้เล่นทำ Action สำเร็จ
+        } catch (error) {
+            // ดัก Error เวลาระบบคิดนานหรือเนื้อหาซับซ้อนเกินไป โดยไม่ลบประวัติเดิมทิ้ง
+            alert("ระบบเวทมนตร์ขัดข้อง (AI อาจใช้เวลาคิดนานเกินไป หรือเนื้อหารุนแรง) โปรดลองพิมพ์ Action ให้สั้นลงอีกนิดครับ");
+        } finally {
+            toggleLoading(false);
         }
+    }
 
-        function handleEnter(e) {
-            if (e.key === 'Enter') takeAction();
+    async function editMessage(index) {
+        const oldText = currentHistory[index].text;
+        const newText = prompt("ดัดแปลงโชคชะตา (แก้ไขเรื่องราว):", oldText);
+        
+        if (newText !== null && newText.trim() !== "" && newText !== oldText) {
+            try {
+                const res = await fetch(`${API_URL}/edit_story`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index: index, new_text: newText })
+                });
+                const data = await res.json();
+                currentHistory = data.history;
+                renderHistory();
+                saveGame(); // เซฟหลังจากแก้ไขข้อความสำเร็จ
+            } catch (error) {
+                alert("เปลี่ยนแปลงโชคชะตาไม่สำเร็จ");
+            }
         }
+    }
+
+    function retryGame() {
+        document.getElementById("setup-screen").style.display = "flex";
+        document.getElementById("game-screen").style.display = "none";
+        document.getElementById("story-board").innerHTML = "";
+        currentHistory = [];
+    }
+
+    function renderHistory() {
+        const board = document.getElementById("story-board");
+        board.innerHTML = ""; 
+
+        currentHistory.forEach((msg, index) => {
+            const div = document.createElement("div");
+            div.className = `message-row role-${msg.role}`;
+            
+            const formattedText = msg.text.replace(/\n/g, "<br>");
+            div.innerHTML = `<div>${formattedText}</div>`;
+
+            const editBtn = document.createElement("button");
+            editBtn.className = "edit-btn";
+            editBtn.innerText = "✎ ดัดแปลง";
+            editBtn.onclick = () => editMessage(index);
+            div.appendChild(editBtn);
+
+            board.appendChild(div);
+        });
+
+        board.scrollTo({ top: board.scrollHeight, behavior: 'smooth' });
+    }
+
+    function toggleLoading(show) {
+        document.getElementById("loading").style.display = show ? "block" : "none";
+        document.getElementById("controls").style.opacity = show ? "0.6" : "1";
+        const inputField = document.getElementById("action-input");
+        const btnSend = document.querySelector("#controls button");
+        
+        inputField.disabled = show;
+        btnSend.disabled = show;
+        if(!show) inputField.focus();
+    }
+
+    function handleEnter(e) {
+        if (e.key === 'Enter') takeAction();
+    }
     </script>
 
 </body>

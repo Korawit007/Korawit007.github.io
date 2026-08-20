@@ -27,16 +27,13 @@ def get_gemini_client():
     if client is not None:
         return client
     
-    # ❌ ลบบรรทัดนี้ทิ้ง: api_key = os.environ.get("GEMINI_API_KEY")
-    
-    # ✅ เปลี่ยนมาใส่แบบนี้แทน (เอาคีย์จริงๆ ของคุณมาใส่ในเครื่องหมายคำพูด)
-    api_key = "GEMINI_API_KEY" 
+    # ต้องเป็นคำสั่งดึงค่าจากระบบแบบนี้นะครับ
+    api_key = os.environ.get("GEMINI_API_KEY") 
     
     if not api_key:
         raise RuntimeError("กรุณาตั้งค่า GEMINI_API_KEY ก่อนใช้งาน")
     client = genai.Client(api_key=api_key)
     return client
-
 
 game_state = {
     "world_setting": "",

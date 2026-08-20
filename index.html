@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>นิยายนายบิ๊ก</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,700;1,400&display=swap"
+        rel="stylesheet">
+    <style>
+        /* --- ตัวแปรสีสำหรับแก้ไขธีม --- */
+        :root {
+            --bg-main: #0d1117;
+            --bg-panel: #161b22;
+            --border-color: #30363d;
+            --accent-color: #8a2be2;
+            /* สีม่วงเวทมนตร์ */
+            --accent-hover: #9b4dff;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --user-msg: #1f2a3a;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Sarabun', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            background-image: radial-gradient(circle at 50% 0%, #1e1e2e 0%, transparent 70%);
+        }
+
+        #container {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+            padding: 20px;
+        }
+
+        /* --- Custom Scrollbar --- */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-main);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* --- หน้าตั้งค่า Setting --- */
+        #setup-screen {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin: auto;
+            width: 100%;
+            max-width: 600px;
+            background: var(--bg-panel);
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #fff;
+            text-align: center;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        textarea,
+        input,
+        select {
+            background-color: var(--bg-main);
+            color: #fff;
+            border: 1px solid var(--border-color);
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus,
+        input:focus,
+        select:focus {
+            border-color: var(--accent-color);
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(138, 43, 226, 0.2);
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        /* --- หน้าเล่นเกม --- */
+        #game-screen {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        #story-board {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            scroll-behavior: smooth;
+        }
+
+        /* กล่องข้อความ */
+        .message-row {
+            max-width: 85%;
+            padding: 15px 20px;
+            border-radius: 12px;
+            line-height: 1.7;
+            animation: slideUp 0.4s ease-out;
+            position: relative;
+        }
+
+        .role-user {
+            background-color: var(--user-msg);
+            color: #e5e7eb;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+            font-style: italic;
+            border: 1px solid #2d3748;
+        }
+
+        .role-model {
+            background-color: var(--bg-panel);
+            color: #fff;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+            border-left: 3px solid var(--accent-color);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* ปุ่ม Edit เล็กๆ ใต้ข้อความ */
+        .edit-btn {
+            background-color: transparent;
+            box-shadow: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 11px;
+            padding: 4px 10px;
+            margin-top: 10px;
+            border-radius: 15px;
+            display: inline-block;
+        }
+
+        .edit-btn:hover {
+            background-color: var(--bg-main);
+            color: #fff;
+            border-color: #fff;
+            transform: none;
+        }
+
+        /* แถบควบคุมด้านล่าง */
+        #controls {
+            display: flex;
+            gap: 12px;
+            background: var(--bg-panel);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        #action-type {
+            width: 130px;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        #action-input {
+            flex-grow: 1;
+        }
+
+        #retry-btn {
+            background-color: transparent;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            box-shadow: none;
+        }
+
+        #retry-btn:hover {
+            background-color: #ef4444;
+            color: white;
+        }
+
+        /* --- Loading Animation --- */
+        #loading {
+            display: none;
+            align-self: flex-start;
+            margin-left: 20px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .dots::after {
+            content: '';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        /* --- Keyframes สำหรับลูกเล่น --- */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes dots {
+
+            0%,
+            20% {
+                content: '';
+            }
+
+            40% {
+                content: '.';
+            }
+
+            60% {
+                content: '..';
+            }
+
+            80%,
+            100% {
+                content: '...';
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container">
+        <!-- หน้าแรก: กำหนด Setting โลก -->
+        <div id="setup-screen">
+            <h2>กำหนดหน้ากระดาษของคุณ</h2>
+            <textarea id="world-setting" rows="7"
+                placeholder="อธิบายกฎของโลกแห่งนี้เวทมนตร์ พลัง หรือเหตุการณ์เริ่มต้นที่ตัวเอกกำลังเผชิญ..."></textarea>
+            <button onclick="startGame()">เปิดม่านเรื่องราว</button>
+        </div>
+
+        <!-- หน้าสอง: หน้าเล่นเกมหลัก -->
+        <div id="game-screen">
+            <div id="story-board"></div>
+            <div id="loading">Game Master กำลังแต่งแต้มเรื่องราว<span class="dots"></span></div>
+
+            <div id="controls">
+                <select id="action-type">
+                    <option value="do">🗡️ กระทำ (Do)</option>
+                    <option value="talk">💬 พูดคุย (Talk)</option>
+                    <option value="story">📜 กำหนด (Story)</option>
+                </select>
+                <input type="text" id="action-input" placeholder="พิมพ์สิ่งที่คุณต้องการกระทำต่อไปที่นี่..."
+                    onkeypress="handleEnter(event)" autocomplete="off">
+                <button onclick="takeAction()">ส่ง</button>
+                <button id="retry-btn" onclick="retryGame()">เริ่มใหม่</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+        let currentHistory = [];
+
+        async function startGame() {
+            const settingText = document.getElementById("world-setting").value;
+            if (!settingText) return alert("โปรดกำหนด Setting ก่อนออกเดินทาง");
+
+            document.getElementById("setup-screen").style.display = "none";
+            document.getElementById("game-screen").style.display = "flex";
+            toggleLoading(true);
+
+            try {
+                const res = await fetch(`${API_URL}/start_game`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ world_setting: settingText })
+                });
+                const data = await res.json();
+                currentHistory = data.history;
+                renderHistory();
+            } catch (error) {
+                alert("อัญเชิญ Game Master ไม่สำเร็จ ลองตรวจสอบ Backend ดูนะ");
+                retryGame();
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function takeAction() {
+            const actionType = document.getElementById("action-type").value;
+            const actionInput = document.getElementById("action-input");
+            const content = actionInput.value.trim();
+
+            if (!content) return;
+
+            actionInput.value = "";
+            toggleLoading(true);
+
+            // ดึงให้หน้าจอเลื่อนลงมาสุดก่อนเพื่อให้เห็นว่ากำลังโหลด
+            const board = document.getElementById("story-board");
+            setTimeout(() => board.scrollTop = board.scrollHeight, 100);
+
+            try {
+                const res = await fetch(`${API_URL}/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action_type: actionType, content: content })
+                });
+                const data = await res.json();
+                currentHistory = data.history;
+                renderHistory();
+            } catch (error) {
+                alert("เกิดข้อผิดพลาดในการประมวลผล");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function editMessage(index) {
+            const oldText = currentHistory[index].text;
+            const newText = prompt("ดัดแปลงโชคชะตา (แก้ไขเรื่องราว):", oldText);
+
+            if (newText !== null && newText.trim() !== "" && newText !== oldText) {
+                try {
+                    const res = await fetch(`${API_URL}/edit_story`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ index: index, new_text: newText })
+                    });
+                    const data = await res.json();
+                    currentHistory = data.history;
+                    renderHistory();
+                } catch (error) {
+                    alert("เปลี่ยนแปลงโชคชะตาไม่สำเร็จ");
+                }
+            }
+        }
+
+        function retryGame() {
+            document.getElementById("setup-screen").style.display = "flex";
+            document.getElementById("game-screen").style.display = "none";
+            document.getElementById("story-board").innerHTML = "";
+            currentHistory = [];
+        }
+
+        function renderHistory() {
+            const board = document.getElementById("story-board");
+            board.innerHTML = "";
+
+            currentHistory.forEach((msg, index) => {
+                const div = document.createElement("div");
+                div.className = `message-row role-${msg.role}`;
+
+                const formattedText = msg.text.replace(/\n/g, "<br>");
+                div.innerHTML = `<div>${formattedText}</div>`;
+
+                const editBtn = document.createElement("button");
+                editBtn.className = "edit-btn";
+                editBtn.innerText = "✎ ดัดแปลง";
+                editBtn.onclick = () => editMessage(index);
+                div.appendChild(editBtn);
+
+                board.appendChild(div);
+            });
+
+            // เลื่อนอัตโนมัติแบบนุ่มนวล (Smooth Scroll)
+            board.scrollTo({ top: board.scrollHeight, behavior: 'smooth' });
+        }
+
+        function toggleLoading(show) {
+            document.getElementById("loading").style.display = show ? "block" : "none";
+            document.getElementById("controls").style.opacity = show ? "0.6" : "1";
+            const inputField = document.getElementById("action-input");
+            const btnSend = document.querySelector("#controls button");
+
+            // ล็อกไม่ให้พิมพ์หรือกดส่งซ้ำตอน AI กำลังคิด
+            inputField.disabled = show;
+            btnSend.disabled = show;
+            if (!show) inputField.focus();
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') takeAction();
+        }
+    </script>
+
+</body>
+
+</html>

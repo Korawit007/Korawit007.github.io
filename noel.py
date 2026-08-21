@@ -7,27 +7,22 @@ import os
 
 app = FastAPI()
 
-# --- ก๊อปปี้บล็อกนี้ไปวาง ---
+# --- ตั้งค่า CORS ให้หน้าเว็บเข้ามาคุยได้ ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # อนุญาตให้ทุกหน้าเว็บเข้ามาคุยได้
+    allow_origins=["*"], 
     allow_credentials=True,
-    allow_methods=["*"],  # อนุญาตให้รับคำสั่ง OPTIONS, POST, GET ได้ทั้งหมด
+    allow_methods=["*"], 
     allow_headers=["*"],
 )
-# ------------------------
 
 client = None
-# ... (โค้ดเดิมของคุณต่อจากนี้) ...
-client = None
-
 
 def get_gemini_client():
     global client
     if client is not None:
         return client
     
-    # ต้องเป็นคำสั่งดึงค่าจากระบบแบบนี้นะครับ
     api_key = os.environ.get("GEMINI_API_KEY") 
     
     if not api_key:
@@ -35,27 +30,17 @@ def get_gemini_client():
     client = genai.Client(api_key=api_key)
     return client
 
-game_state = {
-    "world_setting": "",
-    "system_instruction": "",
-    "history": [],
-}
-
-
+# --- กำหนดโครงสร้างข้อมูลที่จะรับจากหน้าเว็บ ---
 class SettingRequest(BaseModel):
     world_setting: str
-
 
 class ActionRequest(BaseModel):
     action_type: str
     content: str
+    history: list         # รับประวัติแชททั้งหมดที่หน้าเว็บส่งมาให้
+    world_setting: str    # รับ Setting โลกและตัวละครมาเพื่อย้ำเตือน AI
 
-
-class EditRequest(BaseModel):
-    index: int
-    new_text: str
-
-
+# --- ฟังก์ชันแปลงประวัติแชทให้อยู่ในรูปแบบที่ Google เข้าใจ ---
 def build_history_contents(history):
     return [
         types.Content(
@@ -65,40 +50,45 @@ def build_history_contents(history):
         for turn in history
     ]
 
-
+# --- API 1: เริ่มเกมใหม่ ---
 @app.post("/start_game")
 def start_game(req: SettingRequest):
-    game_state["history"] = []
-    game_state["world_setting"] = req.world_setting
-    game_state["system_instruction"] = (
+    # ย้ำเตือน AI ว่ามันคือ Game Master และต้องยึดกฎของโลกนี้
+    sys_inst = (
         "คุณคือ Game Master สำหรับเกม Text RPG "
-        f"นี่คือ Setting ของโลก: {req.world_setting}\n"
+        f"นี่คือข้อมูลของโลกและตัวละคร:\n{req.world_setting}\n"
         "บรรยายเหตุการณ์อย่างมีชีวิตชีวา และอย่าตัดสินใจแทนผู้เล่น"
     )
+    
     try:
         response = get_gemini_client().models.generate_content(
             model="gemini-3.5-flash-lite",
             contents="เริ่มเรื่องราว บรรยายฉากเริ่มต้น และทิ้งท้ายให้ผู้เล่นตัดสินใจ",
             config=types.GenerateContentConfig(
-                system_instruction=game_state["system_instruction"],
+                system_instruction=sys_inst,
                 temperature=0.8,
             ),
         )
-    # แก้ไขในส่วนของ @app.post("/start_game")
     except Exception as exc:
-        print(f"เกิดข้อผิดพลาดในการเรียก Gemini (start_game): {exc}") # พิมพ์ลง Terminal
-        raise HTTPException(status_code=500, detail=f"Gemini error: {str(exc)}")
+        print(f"เกิดข้อผิดพลาดในการเรียก Gemini (start_game): {exc}")
+        raise HTTPException(status_code=500, detail=f"Gemini error: {exc}") from exc
 
     opening_text = response.text or ""
-    game_state["history"].append({"role": "model", "text": opening_text})
-    return {"story": opening_text, "history": game_state["history"]}
+    
+    # สร้างประวัติเทิร์นแรก แล้วส่งกลับไปให้หน้าเว็บเก็บไว้
+    history = [{"role": "model", "text": opening_text}]
+    return {"story": opening_text, "history": history}
 
-
+# --- API 2: ส่ง Action เล่นเกม ---
 @app.post("/action")
 def take_action(req: ActionRequest):
-    if not game_state["history"]:
-        raise HTTPException(status_code=400, detail="กรุณาเริ่มเกมก่อน")
-
+    sys_inst = (
+        "คุณคือ Game Master สำหรับเกม Text RPG "
+        f"นี่คือข้อมูลของโลกและตัวละคร:\n{req.world_setting}\n"
+        "บรรยายเหตุการณ์อย่างมีชีวิตชีวา และอย่าตัดสินใจแทนผู้เล่น"
+    )
+    
+    # แปลงคำสั่งให้อ่านง่ายขึ้น
     prompts = {
         "do": f"> ผู้เล่นพยายามที่จะ: {req.content}",
         "talk": f'> ผู้เล่นพูดว่า: "{req.content}"',
@@ -107,34 +97,30 @@ def take_action(req: ActionRequest):
     if req.action_type not in prompts:
         raise HTTPException(status_code=400, detail="Action Type ไม่ถูกต้อง")
 
-    game_state["history"].append({"role": "user", "text": prompts[req.action_type]})
+    # เอาประวัติจากหน้าเว็บ มาเติมข้อความใหม่ของผู้เล่นเข้าไป
+    new_history = req.history.copy()
+    new_history.append({"role": "user", "text": prompts[req.action_type]})
+    
     try:
         response = get_gemini_client().models.generate_content(
             model="gemini-3.5-flash-lite",
-            contents=build_history_contents(game_state["history"]),
+            contents=build_history_contents(new_history), # โยนประวัติทั้งหมดให้ AI อ่าน
             config=types.GenerateContentConfig(
-                system_instruction=game_state["system_instruction"],
+                system_instruction=sys_inst,
                 temperature=0.85,
             ),
         )
-    # แก้ไขในส่วนของ @app.post("/action")
     except Exception as exc:
-        print(f"เกิดข้อผิดพลาดในการเรียก Gemini (take_action): {exc}") # พิมพ์ลง Terminal
-        raise HTTPException(status_code=500, detail=f"Gemini error: {str(exc)}")
+        print(f"เกิดข้อผิดพลาดในการเรียก Gemini (take_action): {exc}")
+        raise HTTPException(status_code=500, detail=f"Gemini error: {exc}") from exc
 
     ai_response = response.text or ""
-    game_state["history"].append({"role": "model", "text": ai_response})
-    return {"response": ai_response, "history": game_state["history"]}
+    
+    # เติมคำตอบของ AI ลงในประวัติ แล้วส่งกลับไปให้หน้าเว็บเซฟลงเครื่อง
+    new_history.append({"role": "model", "text": ai_response})
+    return {"response": ai_response, "history": new_history}
 
-
-@app.post("/edit_story")
-def edit_story(req: EditRequest):
-    if req.index < 0 or req.index >= len(game_state["history"]):
-        raise HTTPException(status_code=400, detail="Index ไม่ถูกต้อง")
-    game_state["history"][req.index]["text"] = req.new_text
-    return {"message": "แก้ไขเรื่องราวสำเร็จ", "history": game_state["history"]}
-
-
+# --- API 3: เช็คสถานะเซิร์ฟเวอร์ ---
 @app.get("/health")
 def health_check():
     return {"status": "ok"}

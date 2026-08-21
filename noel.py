@@ -7,54 +7,34 @@ import os
 
 app = FastAPI()
 
-# --- ก๊อปปี้บล็อกนี้ไปวาง ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # อนุญาตให้ทุกหน้าเว็บเข้ามาคุยได้
+    allow_origins=["*"], 
     allow_credentials=True,
-    allow_methods=["*"],  # อนุญาตให้รับคำสั่ง OPTIONS, POST, GET ได้ทั้งหมด
+    allow_methods=["*"], 
     allow_headers=["*"],
 )
-# ------------------------
 
 client = None
-# ... (โค้ดเดิมของคุณต่อจากนี้) ...
-client = None
-
 
 def get_gemini_client():
     global client
     if client is not None:
         return client
-    
-    # ต้องเป็นคำสั่งดึงค่าจากระบบแบบนี้นะครับ
     api_key = os.environ.get("GEMINI_API_KEY") 
-    
     if not api_key:
         raise RuntimeError("กรุณาตั้งค่า GEMINI_API_KEY ก่อนใช้งาน")
     client = genai.Client(api_key=api_key)
     return client
 
-game_state = {
-    "world_setting": "",
-    "system_instruction": "",
-    "history": [],
-}
-
-
 class SettingRequest(BaseModel):
     world_setting: str
-
 
 class ActionRequest(BaseModel):
     action_type: str
     content: str
-
-
-class EditRequest(BaseModel):
-    index: int
-    new_text: str
-
+    history: list         
+    world_setting: str    
 
 def build_history_contents(history):
     return [
@@ -65,14 +45,11 @@ def build_history_contents(history):
         for turn in history
     ]
 
-
 @app.post("/start_game")
 def start_game(req: SettingRequest):
-    game_state["history"] = []
-    game_state["world_setting"] = req.world_setting
-    game_state["system_instruction"] = (
+    sys_inst = (
         "คุณคือ Game Master สำหรับเกม Text RPG "
-        f"นี่คือ Setting ของโลก: {req.world_setting}\n"
+        f"นี่คือข้อมูลของโลกและตัวละคร:\n{req.world_setting}\n"
         "บรรยายเหตุการณ์อย่างมีชีวิตชีวา และอย่าตัดสินใจแทนผู้เล่น"
     )
     try:
@@ -80,25 +57,26 @@ def start_game(req: SettingRequest):
             model="gemini-3.5-flash-lite",
             contents="เริ่มเรื่องราว บรรยายฉากเริ่มต้น และทิ้งท้ายให้ผู้เล่นตัดสินใจ",
             config=types.GenerateContentConfig(
-                system_instruction=game_state["system_instruction"],
+                system_instruction=sys_inst,
                 temperature=0.8,
             ),
         )
-    # แก้ไขในส่วนของ @app.post("/start_game")
     except Exception as exc:
-        print(f"เกิดข้อผิดพลาดในการเรียก Gemini (start_game): {exc}") # พิมพ์ลง Terminal
-        raise HTTPException(status_code=500, detail=f"Gemini error: {str(exc)}")
+        print(f"เกิดข้อผิดพลาดในการเรียก Gemini (start_game): {exc}")
+        raise HTTPException(status_code=500, detail=f"Gemini error: {exc}") from exc
 
     opening_text = response.text or ""
-    game_state["history"].append({"role": "model", "text": opening_text})
-    return {"story": opening_text, "history": game_state["history"]}
-
+    history = [{"role": "model", "text": opening_text}]
+    return {"story": opening_text, "history": history}
 
 @app.post("/action")
 def take_action(req: ActionRequest):
-    if not game_state["history"]:
-        raise HTTPException(status_code=400, detail="กรุณาเริ่มเกมก่อน")
-
+    sys_inst = (
+        "คุณคือ Game Master สำหรับเกม Text RPG "
+        f"นี่คือข้อมูลของโลกและตัวละคร:\n{req.world_setting}\n"
+        "บรรยายเหตุการณ์อย่างมีชีวิตชีวา และอย่าตัดสินใจแทนผู้เล่น"
+    )
+    
     prompts = {
         "do": f"> ผู้เล่นพยายามที่จะ: {req.content}",
         "talk": f'> ผู้เล่นพูดว่า: "{req.content}"',
@@ -107,33 +85,25 @@ def take_action(req: ActionRequest):
     if req.action_type not in prompts:
         raise HTTPException(status_code=400, detail="Action Type ไม่ถูกต้อง")
 
-    game_state["history"].append({"role": "user", "text": prompts[req.action_type]})
+    new_history = req.history.copy()
+    new_history.append({"role": "user", "text": prompts[req.action_type]})
+    
     try:
         response = get_gemini_client().models.generate_content(
             model="gemini-3.5-flash-lite",
-            contents=build_history_contents(game_state["history"]),
+            contents=build_history_contents(new_history),
             config=types.GenerateContentConfig(
-                system_instruction=game_state["system_instruction"],
+                system_instruction=sys_inst,
                 temperature=0.85,
             ),
         )
-    # แก้ไขในส่วนของ @app.post("/action")
     except Exception as exc:
-        print(f"เกิดข้อผิดพลาดในการเรียก Gemini (take_action): {exc}") # พิมพ์ลง Terminal
-        raise HTTPException(status_code=500, detail=f"Gemini error: {str(exc)}")
+        print(f"เกิดข้อผิดพลาดในการเรียก Gemini (take_action): {exc}")
+        raise HTTPException(status_code=500, detail=f"Gemini error: {exc}") from exc
 
     ai_response = response.text or ""
-    game_state["history"].append({"role": "model", "text": ai_response})
-    return {"response": ai_response, "history": game_state["history"]}
-
-
-@app.post("/edit_story")
-def edit_story(req: EditRequest):
-    if req.index < 0 or req.index >= len(game_state["history"]):
-        raise HTTPException(status_code=400, detail="Index ไม่ถูกต้อง")
-    game_state["history"][req.index]["text"] = req.new_text
-    return {"message": "แก้ไขเรื่องราวสำเร็จ", "history": game_state["history"]}
-
+    new_history.append({"role": "model", "text": ai_response})
+    return {"response": ai_response, "history": new_history}
 
 @app.get("/health")
 def health_check():

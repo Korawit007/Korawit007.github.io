@@ -181,6 +181,21 @@
         }
     }
 
+    // --- เริ่มเรื่องราวใหม่โดยใช้ Setting เดิม ---
+    function retryGame() {
+        if(confirm("ต้องการลบเนื้อเรื่องปัจจุบันทิ้ง แล้วเริ่มสุ่มเหตุการณ์เปิดเรื่องใหม่ด้วย Setting เดิมใช่หรือไม่?")) {
+            // ล้างประวัติแชทหน้าจอ
+            currentHistory = [];
+            document.getElementById("story-board").innerHTML = "";
+            
+            // เซฟทับเพื่อเคลียร์ประวัติในเครื่อง (แต่ Setting ในช่องกรอกจะยังอยู่ครบ)
+            saveGame(); 
+            
+            // สั่งรันฟังก์ชันเริ่มเกมเพื่อดึงบทนำใหม่ทันที
+            startGame(); 
+        }
+    }
+
     function goToStep(step) {
         document.getElementById("step-1").style.display = step === 1 ? "flex" : "none";
         document.getElementById("step-2").style.display = step === 2 ? "flex" : "none";
